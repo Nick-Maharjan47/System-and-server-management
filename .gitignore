@@ -22,3 +22,4 @@
 !system/
 !systemd/system/
 !systemd/system/ladvd.service
+!sshguard/
