@@ -1,0 +1,22 @@
+options {
+    directory "/var/cache/bind";
+    recursion no;
+    dnssec-validation no;
+    listen-on-v6 { none; };
+    allow-query { any; };
+    listen-on { 127.0.0.1; 193.191.176.212; };
+
+    // Disable managed keys
+    managed-keys-directory "/var/cache/bind";
+};
+
+acl "trusted" {
+    127.0.0.0/8;
+    10.0.0.0/11;
+    193.191.176.0/24;    # UCLL labs
+    !193.191.176.1;      # Exclude yoda.uclllabs.be
+    193.191.187.64/26;   # UCLL labs
+    193.190.120.0/26;    # UCLL labs
+    193.191.183.192/27;  # UCLL labs
+    141.135.124.97;
+};
