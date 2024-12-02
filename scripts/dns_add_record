@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# Ensure the script is run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: This script must be run as root."
+  exit 1
+fi
+
+# Default record type is 'A'
+record_type="A"
+
+# Parse command line options
+while getopts ":t:" opt; do
+  case $opt in
+    t)
+      record_type="$OPTARG"
+      ;;
+    \?)
+      echo "Error: Invalid option -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Error: Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Shift off the options and get positional parameters
+shift $((OPTIND - 1))
+
+# Ensure the correct number of arguments is passed
+if [ $# -lt 3 ]; then
+  echo "Usage: $0 -t <record_type> <record_name> <record_data> <zone>"
+  echo "Supported record types: A, MX, CNAME"
+  exit 1
+fi
+
+record_name="$1"
+record_data="$2"
+zone="$3"
+
+# Ensure the zone is fully qualified (no trailing dot means add one)
+zone="${zone%.}"
+zonefile="/etc/bind/zones/db.$zone"
+
+# Check if the zone file exists
+if [ ! -f "$zonefile" ]; then
+  echo "Error: Zone file $zonefile does not exist."
+  exit 1
+fi
+
+# Create the record based on the type provided
+if [ "$record_type" == "A" ]; then
+    echo "$record_name IN A $record_data" >> "$zonefile"
+elif [ "$record_type" == "CNAME" ]; then
+    echo "$record_name IN CNAME $record_data" >> "$zonefile"
+elif [ "$record_type" == "MX" ]; then
+    echo "$record_name IN MX 10 $record_data." >> "$zonefile"
+    # Add A record for the mail server
+    echo "$record_data IN A $record_data" >> "$zonefile"
+else
+    echo "Error: Invalid record type $record_type. Supported types are A, MX, and CNAME."
+    exit 1
+fi
+
+# Read the current serial number from the zone file
+current_serial=$(grep "Serial" "$zonefile" | awk '{print $1}' | tr -d '();')
+
+# Extract the date part of the serial number
+date_part=$(echo "$current_serial" | cut -c1-8)
+
+# Extract the revision part of the serial number
+revision_part=$(echo "$current_serial" | cut -c9-10)
+
+# Increment the revision part
+new_revision=$((revision_part + 1))
+
+# Format the new serial number
+new_serial="${date_part}$(printf "%02d" "$new_revision")"
+
+# Update the serial number in the zone file
+sed -i "s/$current_serial/$new_serial/" "$zonefile"
+
+# Reload BIND to apply changes
+if systemctl restart bind9; then
+  echo "DNS record $record_name.$zone has been added successfully with record type $record_type."
+else
+  echo "Error: Failed to reload BIND. Please check the configuration."
+  exit 1
+fi
+
