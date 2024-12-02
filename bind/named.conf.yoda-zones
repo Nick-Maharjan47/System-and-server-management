@@ -1,0 +1,16 @@
+zone "subzoneeir8eh.nick-maharjan.sasm.uclllabs.be" {
+  type master;
+  file "/etc/bind/zones/db.subzoneeir8eh.nick-maharjan.sasm.uclllabs.be";
+};
+zone "subzonejah5lu.nick-maharjan.sasm.uclllabs.be" {
+  type master;
+  file "/etc/bind/zones/db.subzonejah5lu.nick-maharjan.sasm.uclllabs.be";
+};
+zone "subzoneoogh3o.nick-maharjan.sasm.uclllabs.be" {
+  type master;
+  file "/etc/bind/zones/db.subzoneoogh3o.nick-maharjan.sasm.uclllabs.be";
+};
+zone "subzoneohger2.nick-maharjan.sasm.uclllabs.be" {
+  type master;
+  file "/etc/bind/zones/db.subzoneohger2.nick-maharjan.sasm.uclllabs.be";
+};
