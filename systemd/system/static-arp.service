@@ -1,0 +1,12 @@
+[Unit]
+Description=Set static ARP entry for default gateway
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/set_static_arp.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
