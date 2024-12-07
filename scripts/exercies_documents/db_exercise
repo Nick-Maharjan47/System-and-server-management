@@ -1,0 +1,181 @@
+first I check the ip adderess of yoda
+ip address of yoda
+
+root@nick-maharjan:~# root@nick-maharjan:~# nslookup [yoda.uclllabs.be](http://yoda.uclllabs.be/)
+Server:         8.8.8.8
+Address:        8.8.8.8#53
+
+Non-authoritative answer:
+Name:   [yoda.uclllabs.be](http://yoda.uclllabs.be/)
+Address: 193.191.177.12
+Name:   [yoda.uclllabs.be](http://yoda.uclllabs.be/)
+Address: 2001:6a8:2880:a021::12
+
+# **Full Documentation of the Process**
+
+## **1. Understanding the Requirements**
+
+We needed to ensure that the **`log`** table in a MySQL database always contains exactly 85 rows. If there are more than 85 rows, the oldest rows should be deleted. If there are fewer than 85 rows, new random rows should be inserted.
+
+## **2. Setting Up MySQL**
+
+To begin, we ensured that MySQL was installed and running on the server.
+
+### **2.1 Installing MySQL**
+
+If MySQL was not already installed, we used the following commands:
+
+```bash
+sudo apt update
+sudo apt install mysql-server
+
+```
+
+### **2.2 Starting MySQL**
+
+We started the MySQL service to ensure it was running:
+
+```bash
+sudo systemctl start mysql
+
+```
+
+### **2.3 Securing MySQL**
+
+We secured the installation to set up the root password and remove unnecessary features:
+
+```bash
+sudo mysql_secure_installation
+
+```
+
+## **3. Creating the Database and Table**
+
+We created a database named **`check`** and a table named **`log`** to store the data.
+
+### **3.1 Creating the Database**
+
+```sql
+CREATE DATABASE check;
+
+```
+
+### **3.2 Creating the Table**
+
+The **`log`** table included an auto-incrementing **`id`**, a timestamp column **`date`**, and a text column **`text`** to store random strings:
+
+```sql
+USE check;
+
+CREATE TABLE log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    text VARCHAR(255)
+);
+
+```
+
+## **4. Writing a Bash Script**
+
+Next, we wrote a Bash script to handle the logic of maintaining exactly 85 rows in the **`log`** table. The script:
+
+- Deletes the oldest rows if the count exceeds 85.
+- Inserts new random rows if the count is below 85.
+
+### **4.1 Creating the Script**
+
+We created a script named **`manage_log.sh`**:
+
+```bash
+#!/bin/bash
+
+# Database credentials
+DB_HOST="localhost"
+DB_USER="check"
+DB_PASS="rDEetGxq82DCE"
+DB_NAME="check"
+
+# MySQL command to connect to the database
+MYSQL_CMD="mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME"
+
+# Get the current count of rows in the log table
+row_count=$(echo "SELECT COUNT(*) FROM log;" | $MYSQL_CMD -N)
+
+# Check if the row count is less than 80
+if [ "$row_count" -lt 80 ]; then
+    # Insert random data until there are at least 80 rows
+    while [ "$row_count" -lt 80 ]; do
+        # Generate a random string using MD5 (or choose any method)
+        random_text=$(openssl rand -hex 5)
+        # Insert the random data into the log table
+        echo "INSERT INTO log (date, text) VALUES (NOW(), '$random_text');" | $MYSQL_CMD
+        # Update the row count from the database
+        row_count=$(echo "SELECT COUNT(*) FROM log;" | $MYSQL_CMD -N)
+    done
+fi
+
+# Check if the row count exceeds 90
+if [ "$row_count" -gt 85 ]; then
+    # Delete the oldest row (the one with the earliest date)
+    echo "DELETE FROM log ORDER BY date ASC LIMIT 1;" | $MYSQL_CMD
+    # Update the row count again after deletion
+    row_count=$(echo "SELECT COUNT(*) FROM log;" | $MYSQL_CMD -N)
+fi
+
+echo "Log table is now maintained with between 80 and 90 records."
+```
+
+![image.png](https://prod-files-secure.s3.us-west-2.amazonaws.com/843d0b97-6b9d-4f23-b08f-ab62c518c36d/141ab119-7fb4-428a-80f6-28e9fdb4984b/image.png)
+
+### **4.2 Making the Script Executable**
+
+We made the script executable:
+
+```bash
+chmod +x manage_log.sh
+
+```
+
+## **5. Automating the Script with Cron**
+
+To run this script automatically at regular intervals (e.g., every hour), we used the cron scheduler.
+
+### **5.1 Editing the Cron Jobs**
+
+We edited the cron jobs:
+
+```bash
+crontab -e
+
+```
+
+### **5.2 Adding the Cron Job**
+
+We added a line to run the script every hour:
+
+```bash
+0 * * * * /path/to/manage_log.sh
+
+```
+
+## **6. Testing the Implementation**
+
+After setting up the script and the cron job, we verified that the **`log`** table maintained exactly 85 records.
+
+### **6.1 Initial Data Population**
+
+To test the functionality, we manually added data to the **`log`** table:
+
+```sql
+INSERT INTO log (text) VALUES ('SampleData1'), ('SampleData2');
+
+```
+
+### **6.2 Verifying Row Count**
+
+We used the following query to confirm that the **`log`** table stayed within the required row range:
+
+```sql
+SELECT COUNT(*) FROM log;
+
+```

@@ -1,0 +1,475 @@
+In this assignment, I set up and configured an Apache web server to meet specific requirements. 
+This included creating virtual hosts, setting up DNS records. 
+
+## **Prerequisites**
+
+Before starting, I made sure I had root or sudo access to the server, basic knowledge of shell scripting and Apache configuration, and Git installed for version control.
+
+## **Web Server Installation and Configuration**
+
+### **Install Apache**
+
+First, I updated the package list and installed Apache:
+
+```bash
+sudo apt update
+sudo apt install apache2
+
+```
+
+Next, I started and enabled Apache to run on boot:
+
+```bash
+sudo systemctl start apache2
+sudo systemctl enable apache2
+
+```
+
+### **Configure Default Web Page**
+
+I edited the default Apache configuration file to include the default web page:
+
+```bash
+sudo nano /etc/apache2/sites-available/000-default.conf
+
+```
+
+I modified the configuration to include the default web page:
+
+```
+  GNU nano 7.2                                                                                   /etc/apache2/sites-available/000-default.conf                                                                                             <VirtualHost *:80>
+        # The ServerName directive sets the request scheme, hostname and port that
+        # the server uses to identify itself. This is used when creating
+        # redirection URLs. In the context of virtual hosts, the ServerName
+        # specifies what hostname must appear in the request's Host: header to
+        # match this virtual host. For the default virtual host (this file) this
+        # value is not decisive as it is used as a last resort host regardless.
+        # However, you must set it for any further virtual host explicitly.
+        #ServerName www.example.com
+
+        ServerName www.nick-maharjan.sasm.uclllabs.be
+        ServerAlias nick-maharjan.sasm.uclllabs.be
+          <Directory /var/www/html>
+        AllowOverride All
+            </Directory>
+
+        ServerAdmin webmaster@localhost
+        DocumentRoot /var/www/html
+
+        # Available loglevels: trace8, ..., trace1, debug, info, notice, warn,
+        # error, crit, alert, emerg.
+        # It is also possible to configure the loglevel for particular
+        # modules, e.g.
+        #LogLevel info ssl:warn
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+        # For most configuration files from conf-available/, which are
+        # enabled or disabled at a global level, it is possible to
+        # include a line for only one particular virtual host. For example the
+        # following line enables the CGI configuration for this host only
+        # after it has been globally disabled with "a2disconf".
+        #Include conf-available/serve-cgi-bin.conf
+</VirtualHost>
+```
+
+I created the default **`index.html`** file:
+
+```bash
+echo 'welcome' > /var/www/html/index.html
+
+```
+
+Finally, I restarted Apache to apply the changes:
+
+```bash
+sudo systemctl restart apache2
+
+```
+
+### **Create Virtual Hosts**
+
+### **www1.nick-maharjan.sasm.uclllabs.be**
+
+I created the DocumentRoot directory:
+
+```bash
+sudo mkdir -p /var/www/www1.nick-maharjan.sasm.uclllabs.be
+
+```
+
+I created the default **`index.html`** file:
+
+```bash
+echo 'www1' > /var/www/www1.nick-maharjan.sasm.uclllabs.be/index.html
+
+```
+
+I created the virtual host configuration file:
+
+```bash
+sudo nano /etc/apache2/sites-available/www1.nick-maharjan.sasm.uclllabs.be.conf
+
+```
+
+I added the following configuration:
+
+```
+<VirtualHost *:80>
+    ServerName www1.nick-maharjan.sasm.uclllabs.be
+    DocumentRoot /var/www/www1.nick-maharjan.sasm.uclllabs.be
+
+    <Directory /var/www/www1.nick-maharjan.sasm.uclllabs.be>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/www1.nick-maharjan.sasm.uclllabs.be_error.log
+    CustomLog ${APACHE_LOG_DIR}/www1.nick-maharjan.sasm.uclllabs.be_access.log combined
+</VirtualHost>
+    <Directory "/var/www/www1.nick-maharjan.sasm.uclllabs.be/private">
+        AuthType Basic
+        AuthName "Restricted Area"
+        AuthUserFile /etc/apache2/.htpasswd
+        Require valid-user
+    </Directory>
+```
+
+I enabled the virtual host:
+
+```bash
+sudo a2ensite www1.nick-maharjan.sasm.uclllabs.be.conf
+
+```
+
+make nano   /var/www/www1.nick-maharjan.sasm.uclllabs.be/private/.htaccess
+
+```jsx
+AuthType Basic
+AuthName "Restricted Content"
+AuthUserFile /etc/apache2/.htpasswd
+Require user check
+```
+
+I restarted Apache to apply the changes:
+
+```bash
+sudo systemctl restart apache2
+
+```
+
+### **www2.nick-maharjan.sasm.uclllabs.be**
+
+I created the DocumentRoot directory:
+
+```bash
+sudo mkdir -p /var/www/www2.nick-maharjan.sasm.uclllabs.be
+
+```
+
+I created the **`toupper.php`** file:
+
+```bash
+sudo nano /var/www/www2.nick-maharjan.sasm.uclllabs.be/toupper.php
+
+```
+
+I added the following PHP code:
+
+```php
+<?php
+if (isset($_GET['code'])) {
+    echo strtoupper($_GET['code']);
+} else {
+    echo 'No code parameter provided.';
+}
+?>
+
+```
+
+I created the virtual host configuration file:
+
+```bash
+sudo nano /etc/apache2/sites-available/www2.nick-maharjan.sasm.uclllabs.be.conf
+
+```
+
+I added the following configuration:
+
+```
+                                                                              <VirtualHo<VirtualHost *:80>
+    ServerName www2.nick-maharjan.sasm.uclllabs.be
+    DocumentRoot /var/www/www2.nick-maharjan.sasm.uclllabs.be
+
+    <Directory /var/www/www2.nick-maharjan.sasm.uclllabs.be>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/www2.nick-maharjan.sasm.uclllabs.be_error.log
+    CustomLog ${APACHE_LOG_DIR}/www2.nick-maharjan.sasm.uclllabs.be_access.log combined
+</VirtualHost>
+    <Directory /var/www/www2.nick-maharjan.sasm.uclllabs.be>
+        Options -Indexes
+    </Directory>
+
+```
+
+I enabled the virtual host:
+
+```bash
+sudo a2ensite www2.nick-maharjan.sasm.uclllabs.be.conf
+
+```
+
+I restarted Apache to apply the changes:
+
+```bash
+sudo systemctl restart apache2
+
+```
+
+### **Configure Vhost Specific Logging**
+
+I ensured that each virtual host configuration file included the following lines for logging:
+
+```
+ErrorLog ${APACHE_LOG_DIR}/vhost_error.log
+CustomLog ${APACHE_LOG_DIR}/vhost_access.log combined
+
+```
+
+## **Scripting Part**
+
+### **http_add_vhost Script**
+
+I created the script file:
+
+```bash
+sudo nano /etc/scripts/http_add_vhost
+
+```
+
+I added the following script:
+
+```bash
+#!/bin/bash
+
+# Function to display usage
+usage() {
+    echo "Usage: sudo $0 <subdomain>.nick-maharjan.sasm.uclllabs.be"
+    exit 1
+}
+
+# Check if the script is run with sudo privileges
+if [[ $EUID -ne 0 ]]; then
+    echo "Error: This script must be run with sudo privileges."
+    exit 1
+fi
+
+# Validate the number of arguments
+if [[ $# -ne 1 ]]; then
+    usage
+fi
+
+FQDN=$1
+
+# Validate FQDN ends with 'nick-maharjan.sasm.uclllabs.be'
+if [[ $FQDN != *.nick-maharjan.sasm.uclllabs.be ]]; then
+    echo "Error: FQDN must end with 'nick-maharjan.sasm.uclllabs.be'."
+    exit 1
+fi
+
+# Define paths
+DOC_ROOT="/var/www/$FQDN"
+VHOST_CONF="/etc/apache2/sites-available/$FQDN.conf"
+LOG_FILE="/var/log/apache2/$FQDN.log"
+
+# Create the DocumentRoot directory
+if ! mkdir -p "$DOC_ROOT"; then
+    echo "Error: Failed to create directory $DOC_ROOT." | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+# Extract the subdomain part
+SUBDOMAIN="${FQDN%.nick-maharjan.sasm.uclllabs.be}"
+
+# Create a default index.html page with the subdomain part
+echo "welcome $SUBDOMAIN" > "$DOC_ROOT/index.html"
+
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to create index.html in $DOC_ROOT." | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+# Create the Virtual Host configuration
+cat <<EOL > "$VHOST_CONF"
+<VirtualHost *:80>
+    ServerName $FQDN
+    DocumentRoot $DOC_ROOT
+
+    <Directory $DOC_ROOT>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/${FQDN}_error.log
+    CustomLog \${APACHE_LOG_DIR}/${FQDN}_access.log combined
+</VirtualHost>
+EOL
+
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to create virtual host configuration at $VHOST_CONF." | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+# Enable the new Virtual Host
+if ! a2ensite "$FQDN.conf"; then
+    echo "Error: Failed to enable site $FQDN." | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+# Reload Apache to apply changes
+if ! systemctl restart apache2; then
+    echo "Error: Failed to reload Apache." | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+# Add DNS record
+PARENT_DOMAIN="nick-maharjan.sasm.uclllabs.be"
+IP_ADDRESS="193.191.176.212"
+
+# Add the specified subdomain to the DNS
+/etc/scripts/dns_add_record -t A "$SUBDOMAIN" "$IP_ADDRESS" "$PARENT_DOMAIN"
+
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to add DNS record for $SUBDOMAIN.$PARENT_DOMAIN." | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+echo "Virtual host for $FQDN successfully created and enabled." | tee -a "$LOG_FILE"
+
+```
+
+```jsx
+
+this is another one try to do both if one is not working 
+#!/bin/bash
+# Function to display usage
+usage() {
+    echo "Usage: sudo $0 <subdomain>.nick-maharjan.sasm.uclllabs.be"
+    exit 1
+}
+
+# Check if the script is run with sudo privileges
+if [[ $EUID -ne 0 ]]; then
+    echo "Error: This script must be run with sudo privileges."
+    exit 1
+fi
+
+# Validate the number of arguments
+if [[ $# -ne 1 ]]; then
+    usage
+fi
+
+FQDN=$1
+
+# Validate FQDN ends with 'nick-maharjan.sasm.uclllabs.be'
+if [[ $FQDN != *.nick-maharjan.sasm.uclllabs.be ]]; then
+    echo "Error: FQDN must end with 'nick-maharjan.sasm.uclllabs.be'."
+    exit 1
+fi
+
+# Define paths
+DOC_ROOT="/var/www/$FQDN"
+VHOST_CONF="/etc/apache2/sites-available/$FQDN.conf"
+
+# Create the DocumentRoot directory
+if ! mkdir -p "$DOC_ROOT"; then
+    echo "Error: Failed to create directory $DOC_ROOT."
+    exit 1
+fi
+
+# Create a default index.html page with the full FQDN
+echo "welcome $FQDN" > "$DOC_ROOT/index.html"
+
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to create index.html in $DOC_ROOT."
+    exit 1
+fi
+
+# Create the Virtual Host configuration
+cat <<EOL > "$VHOST_CONF"
+<VirtualHost *:80>
+    ServerName $FQDN
+    DocumentRoot $DOC_ROOT
+
+    <Directory $DOC_ROOT>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/${FQDN}_error.log
+    CustomLog \${APACHE_LOG_DIR}/${FQDN}_access.log combined
+</VirtualHost>
+EOL
+
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to create virtual host configuration at $VHOST_CONF."
+    exit 1
+fi
+
+# Enable the new Virtual Host
+if ! a2ensite "$FQDN.conf"; then
+    echo "Error: Failed to enable site $FQDN."
+    exit 1
+fi
+
+# Reload Apache to apply changes
+if ! systemctl restart apache2; then
+    echo "Error: Failed to reload Apache."
+    exit 1
+fi
+
+# Add DNS record
+SUBDOMAIN="${FQDN%.nick-maharjan.sasm.uclllabs.be}" # Extract subdomain
+PARENT_DOMAIN="nick-maharjan.sasm.uclllabs.be"
+IP_ADDRESS="193.191.176.212"
+/etc/scripts/dns_add_record -t A "$SUBDOMAIN" "$IP_ADDRESS" "$PARENT_DOMAIN"
+
+if [[ $? -ne 0 ]]; then
+    echo "Error: Failed to add DNS record for $FQDN."
+    exit 1
+fi
+
+echo "Virtual host for $FQDN successfully created and enabled."
+```
+
+I made the script executable:
+
+```bash
+sudo chmod +x /etc/scripts/http_add_vhost
+
+```
+## **Testing**
+
+I tested the **`http_add_vhost`** script:
+
+```bash
+sudo /etc/scripts/http_add_vhost sasdas.heloo.nick-maharjan.sasm.uclllabs.be
+
+```
+
+I verified that the virtual host and DNS record were created successfully:
+
+```bash
+sudo /etc/scripts/http_add_vhost heloo.nick-maharjan.sasm.uclllabs.be
+
+```
+
+I accessed the virtual hosts in a web browser to ensure they were working correctly:
+
+- [**http://www1.nick-maharjan.sasm.uclllabs.be**](http://www1.nick-maharjan.sasm.uclllabs.be/)
+- [**http://www2.nick-maharjan.sasm.uclllabs.be**](http://www2.nick-maharjan.sasm.uclllabs.be/)
+- [**http://sasdas.heloo.nick-maharjan.sasm.uclllabs.be**](http://sasdas.heloo.nick-maharjan.sasm.uclllabs.be/)

@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Documentation Script for Postfix and Dovecot Configuration
+
+# Step 1: Create the /var/vmail directory
+echo "First, I will create the /var/vmail directory where the virtual mailboxes will be stored."
+sudo mkdir -p /var/vmail
+echo "Next, I will set the appropriate permissions for the vmail user and group."
+sudo chown -R vmail:vmail /var/vmail
+sudo chmod -R 700 /var/vmail
+
+# Step 2: Create directories for virtual users
+echo "Now, I will create directories for the virtual users: user1, user2, and check."
+sudo mkdir -p /var/vmail/nick-maharjan.sasm.uclllabs.be/{user1,user2,check}
+echo "Afterwards, I will ensure the vmail user and group have the appropriate permissions."
+sudo chown -R vmail:vmail /var/vmail
+sudo chmod -R 700 /var/vmail
+
+# Step 3: Configure Postfix
+echo "Next, I will configure Postfix by editing the main configuration file."
+sudo bash -c 'cat > /etc/postfix/main.cf' <<EOF
+# See /usr/share/postfix/main.cf.dist for a commented, more complete version
+smtpd_banner = $myhostname ESMTP $mail_name (Debian/GNU)
+biff = no
+
+# appending .domain is the MUA's job.
+append_dot_mydomain = no
+
+# Uncomment the next line to generate "delayed mail" warnings
+#delay_warning_time = 4h
+
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+mydestination = $myhostname, localhost.$mydomain, localhost
+relayhost =
+mynetworks = 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+inet_interfaces = all
+recipient_delimiter = +
+
+compatibility_level = 3.6
+
+# Custom settings for SMTP server
+myhostname = mx.nick-maharjan.sasm.uclllabs.be
+mydomain = nick-maharjan.sasm.uclllabs.be
+myorigin = /etc/mailname
+virtual_mailbox_domains = nick-maharjan.sasm.uclllabs.be
+virtual_mailbox_base = /var/vmail
+virtual_mailbox_maps = hash:/etc/postfix/vmailbox
+virtual_alias_maps = hash:/etc/postfix/virtual
+#virtual_transport = lmtp:unix:private/dovecot-lmtp
+virtual_minimum_uid = 100
+virtual_uid_maps = static:5000
+virtual_gid_maps = static:5000
+
+
+
+# TLS parameters
+smtpd_tls_cert_file=/etc/ssl/certs/ssl-cert-snakeoil.pem
+smtpd_tls_key_file=/etc/ssl/private/ssl-cert-snakeoil.key
+smtpd_tls_security_level=may
+smtp_tls_CApath=/etc/ssl/certs
+smtp_tls_security_level=may
+smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache
+
+smtpd_relay_restrictions = permit_mynetworks permit_sasl_authenticated defer_unauth_destination
+
+# Additional recipient restrictions
+smtpd_recipient_restrictions =
+    permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_unauth_destination,
+    reject_rbl_client zen.spamhaus.org,
+    reject_rhsbl_reverse_client dbl.spamhaus.org,
+    reject_rhsbl_helo dbl.spamhaus.org,
+    reject_rhsbl_sender dbl.spamhaus.org
+
+# Step 4: Configure virtual mailbox and aliases
+echo "Then, I will configure the virtual mailbox and aliases."
+sudo bash -c 'cat > /etc/postfix/vmailbox' <<EOF
+user1@nick-maharjan.sasm.uclllabs.be nick-maharjan.sasm.uclllabs.be/user1/
+user2@nick-maharjan.sasm.uclllabs.be nick-maharjan.sasm.uclllabs.be/user2/
+check@nick-maharjan.sasm.uclllabs.be nick-maharjan.sasm.uclllabs.be/check/
+EOF
+
+sudo bash -c 'cat > /etc/postfix/virtual' <<EOF
+user1@nick-maharjan.sasm.uclllabs.be user1
+user2@nick-maharjan.sasm.uclllabs.be user2
+check@nick-maharjan.sasm.uclllabs.be check
+EOF
+
+# Step 5: Build Postfix lookup tables
+echo "After that, I will build the Postfix lookup tables."
+sudo postmap /etc/postfix/vmailbox
+sudo postmap /etc/postfix/virtual
+
+# Step 6: Configure Dovecot
+echo "Next, I will configure Dovecot by editing the main configuration file."
+sudo bash -c 'cat > /etc/dovecot/dovecot.conf' <<EOF
+protocols = imap lmtp
+mail_location = maildir:/var/vmail/%d/%n
+EOF
+
+echo "Then, I will add the LMTP listener configuration to the Dovecot master configuration file."
+sudo bash -c 'cat >> /etc/dovecot/conf.d/10-master.conf' <<EOF
+service lmtp {
+  unix_listener /var/spool/postfix/private/dovecot-lmtp {
+    mode = 0600
+    user = postfix
+    group = postfix
+  }
+}
+EOF
+
+# Step 7: Restart Postfix and Dovecot
+echo "Now, I will restart Postfix and Dovecot to apply the changes."
+sudo systemctl restart postfix
+sudo systemctl restart dovecot
+

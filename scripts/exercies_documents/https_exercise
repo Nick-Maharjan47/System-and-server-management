@@ -1,0 +1,311 @@
+### **Setting Up HTTPS on Apache with SSL/TLS Certificates**
+
+I began by ensuring that I had a running **Apache** server and that my domain was correctly pointing to the server. In my case, the domain was `nick-maharjan.sasm.uclllabs.be`, with a subdomain `supersecure.nick-maharjan.sasm.uclllabs.be`.
+
+I had root access to the server and followed the steps to install **Apache**, enable SSL, and use **Certbot** to automatically manage my SSL/TLS certificates. Here's the step-by-step process I followed:
+
+---
+
+### **Step 1: Install Apache and SSL/TLS Dependencies**
+
+First, I needed to install **Apache** along with the SSL dependencies. To do this, I ran:
+
+```bash
+bash
+Copy code
+sudo apt update
+sudo apt install apache2 ssl-cert
+
+```
+
+Once that was done, I started the Apache server with:
+
+```bash
+bash
+Copy code
+sudo systemctl start apache2
+
+```
+
+I verified that Apache was running by accessing the server through HTTP.
+
+---
+
+### **Step 2: Install Certbot to Manage SSL Certificates**
+
+Next, I installed **Certbot**, which would help me request SSL certificates and configure Apache for HTTPS. To install Certbot, I used the following command:
+
+```bash
+bash
+Copy code
+sudo apt install certbot python3-certbot-apache
+
+```
+
+Certbot is a tool that automates the process of obtaining and renewing SSL certificates.
+
+---
+
+### **Step 3: Obtain SSL/TLS Certificates with Certbot**
+
+To obtain the SSL certificates for my domain, I ran this command:
+
+```bash
+bash
+Copy code
+sudo certbot --apache -d nick-maharjan.sasm.uclllabs.be -d secure.nick-maharjan.sasm.uclllabs.be -d supersecure.nick-maharjan.sasm.uclllabs.be
+
+```
+
+Certbot requested certificates for the listed domains. After I answered a few prompts (email for notifications and agreement to terms), it automatically configured Apache to use the newly generated SSL certificates and set up HTTP-to-HTTPS redirection.
+
+---
+
+### **Step 4: Verify SSL Installation**
+
+After Certbot finished, I checked if the SSL certificates were installed correctly. To do this, I ran the following command:
+
+```bash
+bash
+Copy code
+curl -I https://supersecure.nick-maharjan.sasm.uclllabs.be
+
+```
+
+The response showed that SSL was correctly enabled and the server was responding with HTTPS headers.
+
+If you get a successful response, you're all set!
+
+---
+
+### **Step 5: Redirect HTTP to HTTPS**
+
+I wanted to ensure that all traffic to my domain would automatically use **HTTPS**. To do this, I edited the **HTTP** virtual host configuration to include a redirect rule.
+
+I opened the file `/etc/apache2/sites-available/000-default.conf` with the following command:
+
+```bash
+bash
+Copy code
+sudo nano /etc/apache2/sites-available/000-default.conf
+
+```
+
+I added the following lines to set up the redirect from HTTP to HTTPS:
+
+```
+<VirtualHost *:80>
+        # The ServerName directive sets the request scheme, hostname and port that
+        # the server uses to identify itself. This is used when creating
+        # redirection URLs. In the context of virtual hosts, the ServerName
+        # specifies what hostname must appear in the request's Host: header to
+        # match this virtual host. For the default virtual host (this file) this
+        # value is not decisive as it is used as a last resort host regardless.
+        # However, you must set it for any further virtual host explicitly.
+        #ServerName www.example.com
+
+        ServerName www.nick-maharjan.sasm.uclllabs.be
+        ServerAlias nick-maharjan.sasm.uclllabs.be
+          <Directory /var/www/html>
+        AllowOverride All
+            </Directory>
+
+        ServerAdmin webmaster@localhost
+        DocumentRoot /var/www/html
+
+        # Available loglevels: trace8, ..., trace1, debug, info, notice, warn,
+        # error, crit, alert, emerg.
+        # It is also possible to configure the loglevel for particular
+        # modules, e.g.
+        #LogLevel info ssl:warn
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+
+        # For most configuration files from conf-available/, which are
+        # enabled or disabled at a global level, it is possible to
+        # include a line for only one particular virtual host. For example the
+        # following line enables the CGI configuration for this host only
+        # after it has been globally disabled with "a2disconf".
+        #Include conf-available/serve-cgi-bin.conf
+</VirtualHost>
+
+# This is for the https as it uses 443
+<VirtualHost *:443>
+    ServerName www.nick-maharjan.sasm.uclllabs.be
+    DocumentRoot /var/www/html
+    SSLEngine on
+    SSLCertificateFile /root/.acme.sh/nick-maharjan.sasm.uclllabs.be_ecc/nick-maharjan.sasm.uclllabs.be.cer
+    SSLCertificateKeyFile /root/.acme.sh/nick-maharjan.sasm.uclllabs.be_ecc/nick-maharjan.sasm.uclllabs.be.key
+ </VirtualHost>
+
+add 
+```
+
+Next, I edited the **HTTPS** virtual host file to ensure the SSL certificates were configured correctly. I opened the relevant file:
+
+```bash
+bash
+Copy code
+sudo nano /etc/apache2/sites-available/secure.nick-maharjan.sasm.uclllabs.be.conf
+
+```
+
+Then, I updated the `<VirtualHost *:443>` block like this:
+
+```
+  GNU nano 7.2                                                    secure.nick-maharjan.sasm.uclllabs.be.conf                                                              <VirtualHost *:80>
+    ServerName secure.nick-maharjan.sasm.uclllabs.be
+    DocumentRoot /var/www/html
+    Redirect permanent / https://secure.nick-maharjan.sasm.uclllabs.be/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName secure.nick-maharjan.sasm.uclllabs.be
+    DocumentRoot /var/www/html
+
+    SSLEngine on
+    SSLCertificateFile /etc/pki/fullchain.pem
+    SSLCertificateKeyFile /etc/pki/nick-maharjan.sasm.uclllabs.be.key
+
+    <IfModule mod_rewrite.c>
+        RewriteEngine on
+        RewriteCond %{HTTPS} off
+        RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    </IfModule>
+</VirtualHost>
+
+```
+
+---
+
+ nano supersecure.nick-maharjan.sasm.uclllabs.be.conf
+
+```bash
+<VirtualHost *:80>
+    ServerName supersecure.nick-maharjan.sasm.uclllabs.be
+    DocumentRoot /var/www/html
+    RewriteEngine On
+    RewriteRule ^ https://supersecure.nick-maharjan.sasm.uclllabs.be%{REQUEST_URI} [L,R=301]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName supersecure.nick-maharjan.sasm.uclllabs.be
+    DocumentRoot /var/www/html
+
+    SSLEngine on
+    SSLCertificateFile /etc/pki/fullchain.pem
+    SSLCertificateKeyFile /etc/pki/nick-maharjan.sasm.uclllabs.be.key
+
+    Header always set Strict-Transport-Security "max-age=31536000"
+</VirtualHost>
+
+```
+
+### **Step 6: Enable Apache Modules for SSL and Rewrite**
+
+I made sure that **mod_ssl** and **mod_rewrite** were enabled, as these modules were required for SSL and redirection functionality. I ran the following commands to enable them:
+
+```bash
+bash
+Copy code
+sudo a2enmod ssl
+sudo a2enmod rewrite
+
+```
+
+---
+
+### **Step 7: Restart Apache to Apply Changes**
+
+Once the changes were made, I restarted Apache for the changes to take effect:
+
+```bash
+bash
+Copy code
+sudo systemctl restart apache2
+
+```
+
+---
+
+### **Step 8: Verify HTTPS and SSL Configuration**
+
+To verify that everything was working properly, I tested again using **curl**:
+
+```bash
+bash
+Copy code
+curl -I https://supersecure.nick-maharjan.sasm.uclllabs.be
+
+```
+
+If you see the response indicating a successful connection with status `200 OK`, then HTTPS is set up properly.
+
+---
+
+### **Step 9: Automatic SSL Certificate Renewal**
+
+Certbot automatically configures a cron job for renewing SSL certificates. I ran the following command to test the renewal process:
+
+```bash
+bash
+Copy code
+sudo certbot renew --dry-run
+
+```
+
+This command simulates the renewal to ensure everything is configured correctly.
+
+---
+
+### **Step 10: Troubleshooting**
+
+If I ran into issues, I checked the Apache error log to look for any clues:
+
+```bash
+bash
+Copy code
+sudo tail -f /var/log/apache2/error.log
+
+```
+
+I also ran the `apache2ctl configtest` command to check for configuration syntax errors:
+
+```bash
+bash
+Copy code
+apache2ctl configtest
+
+```
+
+If there were any issues, I fixed them based on the log messages.
+
+---
+
+rember we also have  add supersecure not just secure
+
+GNU nano 7.2                                                    secure.nick-maharjan.sasm.uclllabs.be.conf                                                              <VirtualHost *:80>
+ServerName [secure.nick-maharjan.sasm.uclllabs.be](http://secure.nick-maharjan.sasm.uclllabs.be/)
+DocumentRoot /var/www/html
+Redirect permanent / https://secure.nick-maharjan.sasm.uclllabs.be/
+</VirtualHost>
+
+<VirtualHost *:443>
+ServerName [secure.nick-maharjan.sasm.uclllabs.be](http://secure.nick-maharjan.sasm.uclllabs.be/)
+DocumentRoot /var/www/html
+
+```
+SSLEngine on
+SSLCertificateFile /etc/pki/fullchain.pem
+SSLCertificateKeyFile /etc/pki/nick-maharjan.sasm.uclllabs.be.key
+
+<IfModule mod_rewrite.c>
+    RewriteEngine on
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+```
+
+</VirtualHost>

@@ -1,0 +1,148 @@
+# Persistent Static ARP Configuration
+
+This guide explains how I configured a persistent static ARP entry on my system to secure it against ARP spoofing attacks. 
+The configuration ensures the system always recognizes the correct MAC address for the gateway.
+
+---
+
+## Steps
+
+### 1. Configure `sudo` Permissions
+
+To allow necessary commands to run without password prompts, I edited the `sudo` configuration. 
+This step was essential because some commands require root privileges, and 
+I wanted the system to execute them automatically without needing to enter the password every time.
+
+1. Open the `sudo` file:
+    
+    ```bash
+    sudo visudo
+    
+     Add the following lines at the end of the file:
+    
+     check ALL=(ALL) NOPASSWD: /usr/sbin/arp
+     check ALL=(ALL) NOPASSWD: /sbin/ip link set dev eth0 up
+     check ALL=(ALL) NOPASSWD: /sbin/ip link set dev eth0 down
+    
+     Save and exit.
+    
+    ```
+    
+2. Create the Static ARP Script
+
+I created a script to automatically add the static ARP entry whenever the network interface comes online. 
+This was done to ensure the ARP entry is consistently added each time the network interface is brought up. 
+The static ARP entry is crucial for preventing ARP spoofing attacks, where an attacker could impersonate the gateway and redirect traffic.
+
+```
+Open the script file for editing:
+
+```
+
+sudo nano /usr/local/bin/set_static_arp.sh
+
+Add the following code:
+
+#!/bin/bash
+
+# Wait until eth0 is up
+
+while ! ip link show eth0 | grep 'state UP' > /dev/null; do
+echo "Waiting for eth0 to come up..."
+sleep 5
+done
+
+# Add static ARP entry
+
+/sbin/arp -s 193.191.176.254 ca:fe:c0:ff:ee:00
+
+Save the file and make it executable:
+
+```
+sudo chmod +x /usr/local/bin/set_static_arp.sh
+
+```
+
+1. Automate Script Execution with networkd-dispatcher
+
+To run the script automatically whenever the network comes online, I used networkd-dispatcher. 
+This was necessary because I wanted the static ARP entry to be added every time the network interface eth0 is brought up, 
+ensuring the correct mapping between IP and MAC addresses without requiring manual intervention.
+
+```
+Install networkd-dispatcher if it’s not already installed:
+
+```
+
+sudo apt update
+sudo apt install networkd-dispatcher
+
+Navigate to the routable.d directory:
+
+cd /etc/networkd-dispatcher/routable.d/
+
+Create a new script file:
+
+sudo nano [10-arp-fix.sh](http://10-arp-fix.sh/)
+
+Add the following line to execute the ARP script:
+
+#!/bin/bash
+/usr/local/bin/set_static_arp.sh
+
+Save the file and make it executable:
+
+```
+sudo chmod +x /etc/networkd-dispatcher/routable.d/10-arp-fix.sh
+
+```
+
+1. Testing and Verification
+
+I tested the setup to ensure it works as expected. This was important to confirm that the static ARP 
+entry is successfully added when the network interface is up and remains persistent after reboot.
+Manually Test the ARP Entry
+
+```
+Add the ARP entry manually:
+
+```
+
+sudo arp -s 193.191.176.254 ca:fe:c0:ff:ee:00
+
+Verify it appears in the ARP table:
+
+```
+arp -n | grep 193.191.176.254
+
+```
+
+Test the Script
+
+```
+Bring the eth0 interface down and up:
+
+```
+
+sudo ip link set dev eth0 down
+sudo ip link set dev eth0 up
+
+Verify that the static ARP entry has been added automatically by checking the ARP table:
+
+```
+arp -n | grep 193.191.176.254
+
+```
+
+Reboot Test
+
+```
+Reboot the system:
+
+```
+
+sudo reboot
+
+Once the system is back online, check the ARP table again:
+
+arp -n | grep 193.191.176.254
