@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Ensure the script is run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: This script must be run as root."
+  exit 1
+fi
+
+# Ensure a subzone name is provided
+if [ $# -eq 0 ]; then
+  echo "Usage: $0 <subzone>"
+  exit 1
+fi
+
+# Variables
+subzone="$1"
+zone="nick-maharjan.sasm.uclllabs.be"
+zonefile="/etc/bind/zones/db.$subzone.$zone"
+parent_zonefile="/etc/bind/zones/db.$zone"
+configfile="/etc/bind/named.conf.yoda-zones"
+
+# Check if the zone file already exists
+if [ -f "$zonefile" ]; then
+  echo "Error: Zone file for $subzone.$zone already exists."
+  exit 1
+fi
+
+# Extract the current serial number from the parent zone file
+current_serial=$(grep -m 1 "Serial" "$parent_zonefile" | awk '{print $1}')
+new_serial=$(($current_serial + 1))
+
+# Create the subzone zone file with the new serial number
+cat <<EOL > "$zonefile"
+\$ORIGIN $subzone.$zone.
+\$TTL 60
+@       IN      SOA     ns.$zone. admin.$zone. (
+                    $new_serial     ; Serial
+                    60             ; Refresh
+                    60             ; Retry
+                    60             ; Expire
+                    60             ; Negative Cache TTL
+)
+
+        IN      NS      ns.$zone.
+
+EOL
+
+# Verify if the parent zone file exists
+if [ ! -f "$parent_zonefile" ]; then
+  echo "Error: Parent zone file $parent_zonefile not found."
+  exit 1
+fi
+
+# Add NS record for the subzone in the parent zone if not already present
+if ! grep -q "$subzone      IN      NS      ns.$zone." "$parent_zonefile"; then
+  echo "$subzone      IN      NS      ns.$zone." >> "$parent_zonefile"
+else
+  echo "NS record for $subzone already exists in the parent zone."
+fi
+
+# Update serial in the parent zone file
+sed -i "s/$current_serial/$new_serial/" "$parent_zonefile"
+
+# Add the subzone to the named.conf.yoda-zones
+cat <<EOL >> "$configfile"
+zone "$subzone.$zone" {
+  type master;
+  file "$zonefile";
+};
+EOL
+
+# Reload BIND to apply changes
+if systemctl restart bind9; then
+  echo "Subzone $subzone.$zone has been added successfully."
+else
+  echo "Error: Failed to reload BIND. Please check the configuration."
+  exit 1
+fi

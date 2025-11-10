@@ -1,0 +1,11 @@
+zone "nick-maharjan.sasm.uclllabs.be" {
+    type master;
+    file "/etc/bind/zones/db.nick-maharjan.sasm.uclllabs.be";
+    allow-transfer { 193.191.176.254; 193.191.177.4; 193.191.176.74; };
+    allow-update { key "acme"; };
+};
+zone "omerfaruk-guven.sasm.uclllabs.be" {
+   type slave;
+    file "/var/cache/bind/db.omerfaruk-guven.sasm.uclllabs.be";
+    masters {  193.191.176.74; }; 
+};

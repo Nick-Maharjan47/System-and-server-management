@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Database credentials
+DB_HOST="localhost"
+DB_USER="check"
+DB_PASS="rDEetGxq82DCE"
+DB_NAME="check"
+
+# MySQL command to connect to the database
+MYSQL_CMD="mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME"
+
+# Get the current count of rows in the log table
+row_count=$(echo "SELECT COUNT(*) FROM log;" | $MYSQL_CMD -N)
+
+# Check if the row count is less than 80
+if [ "$row_count" -lt 80 ]; then
+    # Insert random data until there are at least 80 rows
+    while [ "$row_count" -lt 80 ]; do
+        # Generate a random string using MD5 (or choose any method)
+        random_text=$(openssl rand -hex 5)
+        # Insert the random data into the log table
+        echo "INSERT INTO log (date, text) VALUES (NOW(), '$random_text');" | $MYSQL_CMD
+        # Update the row count from the database
+        row_count=$(echo "SELECT COUNT(*) FROM log;" | $MYSQL_CMD -N)
+    done
+fi
+
+# Check if the row count exceeds 90
+if [ "$row_count" -gt 90 ]; then
+    # Delete the oldest row (the one with the earliest date)
+    echo "DELETE FROM log ORDER BY date ASC LIMIT 1;" | $MYSQL_CMD
+    # Update the row count again after deletion
+    row_count=$(echo "SELECT COUNT(*) FROM log;" | $MYSQL_CMD -N)
+fi
+
+echo "Log table is now maintained with between 80 and 90 records."

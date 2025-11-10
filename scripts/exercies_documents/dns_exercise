@@ -1,0 +1,230 @@
+Documentation on how I configured the dns and what I added in the dns but as moving forward 
+-there are some automatical change in the dns files.
+
+first Install the packages
+
+sudo apt update
+
+sudo apt install bind9 bind9utils bind9-doc
+
+add this in named.conf.local
+
+zone "[nick-maharjan.sasm.uclllabs.be](http://nick-maharjan.sasm.uclllabs.be/)" {
+type master;
+file "/etc/bind/zones/db.nick-maharjan.sasm.uclllabs.be";
+allow-transfer { 193.191.176.254; 193.191.177.4; };
+};
+
+mkdir -p zones 
+
+inside zones make db.nick-maharjan.sasm.uclllabs.be
+
+$TTL 60
+@       IN      SOA     [ns.nick-maharjan.sasm.uclllabs.be](http://ns.nick-maharjan.sasm.uclllabs.be/). [admin.nick-maharjan.sasm.uclllabs.be](http://admin.nick-maharjan.sasm.uclllabs.be/). (
+2030000004         ; Serial
+60                 ; Refresh
+60                 ; Retry
+60                 ; Expire
+60 )               ; Negative Cache TTL
+
+@       IN      NS      [ns.nick-maharjan.sasm.uclllabs.be](http://ns.nick-maharjan.sasm.uclllabs.be/).
+@       IN      NS      [ns1.uclllabs.be](http://ns1.uclllabs.be/).
+@       IN      NS      [ns2.uclllabs.be](http://ns2.uclllabs.be/).
+
+ns      IN      A       193.191.176.212
+@       IN      A       193.191.177.212
+www     IN      A       193.191.176.212
+test    IN      A       193.191.177.254
+www1    IN      A       193.191.176.212
+www2    IN      A       193.191.176.212
+
+⇒ add this and check everything for the dns and the Soa record should be fine 
+
+to check 
+
+dig -t soa nick-maharjan.sasm.uclllabs.be @ns.pieter.sasm.uclllabs.be
+
+dig -t [nick-maharjan.sasm.uclllabs.be](http://nick-maharjan.sasm.uclllabs.be) 8.8.8.8 ⇒ can also check like this whether the dns is pinging to other webser or not 
+
+check the recursive  ⇒ dig [test.nick-maharjan.sasm.uclllabs.be](http://test.nick-maharjan.sasm.uclllabs.be/) @recursive-dns.uclllabs.be
+
+journalctl -u named 
+
+NAME=nick-maharjan; for NS in ns1 ns2 ns.$NAME.sasm; do echo "$(dig +short -t soa $[NAME.sasm.uclllabs.be](http://name.sasm.uclllabs.be/) @$[NS.uclllabs.be](http://ns.uclllabs.be/)) ($[NS.uclllabs.be](http://ns.uclllabs.be/))";done
+
+dig -t axfr nick-maharjan.sasm.uclllabs.be @localhost ⇒ this is to check the file transfer whether is ok or not
+
+NAME=nick-maharjan; dig +short -t ns $[NAME.sasm.uclllabs.be](http://name.sasm.uclllabs.be/) | while read DNS_SERVER; do dig axfr $[NAME.sasm.uclllabs.be](http://name.sasm.uclllabs.be/) @$DNS_SERVER | grep -v ';' | sort | sha256sum;done ⇒ for the hash value
+
+then the scripting part
+
+This is dns_add_zone
+
+```jsx
+Get-Service -Name sshd
+
+```
+
+then dns_add_record
+
+```jsx
+#!/bin/bash
+
+# Ensure the script is run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: This script must be run as root."
+  exit 1
+fi
+
+# Default record type is 'A'
+record_type="A"
+
+# Parse command line options
+while getopts ":t:" opt; do
+  case $opt in
+    t)
+      record_type="$OPTARG"
+      ;;
+    \?)
+      echo "Error: Invalid option -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Error: Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Shift off the options and get positional parameters
+shift $((OPTIND - 1))
+
+# Ensure the correct number of arguments is passed
+if [ $# -lt 3 ]; then
+  echo "Usage: $0 -t <record_type> <record_name> <record_data> <zone>"
+  echo "Supported record types: A, MX, CNAME"
+  exit 1
+fi
+
+record_name="$1"
+record_data="$2"
+zone="$3"
+
+# Ensure the zone is fully qualified (no trailing dot means add one)
+zone="${zone%.}"
+zonefile="/etc/bind/zones/db.$zone"
+
+# Check if the zone file exists
+if [ ! -f "$zonefile" ]; then
+  echo "Error: Zone file $zonefile does not exist."
+  exit 1
+fi
+
+# Create the record based on the type provided
+if [ "$record_type" == "A" ]; then
+    echo "$record_name IN A $record_data" >> "$zonefile"
+elif [ "$record_type" == "CNAME" ]; then
+    echo "$record_name IN CNAME $record_data" >> "$zonefile"
+elif [ "$record_type" == "MX" ]; then
+    echo "$record_name IN MX 10 $record_data." >> "$zonefile"
+    # Add A record for the mail server
+    echo "$record_data IN A $record_data" >> "$zonefile"
+else
+    echo "Error: Invalid record type $record_type. Supported types are A, MX, and CNAME."
+    exit 1
+fi
+
+# Read the current serial number from the zone file
+current_serial=$(grep "Serial" "$zonefile" | awk '{print $1}' | tr -d '();')
+
+# Extract the date part of the serial number
+date_part=$(echo "$current_serial" | cut -c1-8)
+
+# Extract the revision part of the serial number
+revision_part=$(echo "$current_serial" | cut -c9-10)
+
+# Increment the revision part
+new_revision=$((revision_part + 1))
+
+# Format the new serial number
+new_serial="${date_part}$(printf "%02d" "$new_revision")"
+
+# Update the serial number in the zone file
+sed -i "s/$current_serial/$new_serial/" "$zonefile"
+
+# Reload BIND to apply changes
+if systemctl restart bind9; then
+  echo "DNS record $record_name.$zone has been added successfully with record type $record_type."
+else
+  echo "Error: Failed to reload BIND. Please check the configuration."
+  exit 1
+fi
+```
+
+when adding check manually in the bind where it is working or not like increment the serial number or not and it is creating file or not 
+
+then scripting part is dns_cleanup
+
+```jsx
+	#!/bin/bash
+	
+	# Ensure the script is run as root
+	if [ "$EUID" -ne 0 ]; then
+	  echo "Error: This script must be run as root."
+	  exit 1
+	fi
+	
+	# Variables
+	zone="nick-maharjan.sasm.uclllabs.be"
+	parent_zonefile="/etc/bind/zones/db.$zone"
+	configfile="/etc/bind/named.conf.yoda-zones"
+	zone_dir="/etc/bind/zones"
+	
+	# Function to remove a zone
+	remove_zone() {
+	  local subzone="$1"
+	  local zonefile="$zone_dir/db.$subzone.$zone"
+	
+	  # Remove NS record from the parent zone
+	  sed -i "/$subzone\s\+IN\s\+NS\s\+/d" "$parent_zonefile"
+	
+	  # Remove the zone configuration from named.conf.yoda-zones
+	  sed -i "/zone \"$subzone.$zone\" {/,/};/d" "$configfile"
+	
+	  # Remove the zone file
+	  rm -f "$zonefile"
+	
+	  echo "Removed zone: $subzone.$zone"
+	}
+	
+	# Get the current timestamp
+	current_time=$(date +%s)
+	
+	# Find and remove zones older than 4 hours
+	for zonefile in "$zone_dir"/db.*.$zone; do
+	  if [ -f "$zonefile" ]; then
+	    subzone=$(basename "$zonefile" | sed "s/db.//" | sed "s/\.$zone//")
+	    creation_time=$(stat -c %Y "$zonefile")
+	    age=$((current_time - creation_time))
+	
+	    if [ "$age" -gt 14400 ]; then # 4 hours = 14400 seconds
+	      remove_zone "$subzone"
+	    fi
+	  fi
+	done
+	
+	# Update serial number in the parent zone file
+	current_serial=$(grep -m 1 "Serial" "$parent_zonefile" | awk '{print $1}')
+	new_serial=$(date +%Y%m%d%H)
+	sed -i "s/$current_serial/$new_serial/" "$parent_zonefile"
+	
+	# Reload BIND to apply changes
+	if systemctl restart bind9; then
+	  echo "BIND reloaded successfully."
+	else
+	  echo "Error: Failed to reload BIND. Please check the configuration."
+	  exit 1
+	fi
+```
+
+named-checkzone [nick-maharjan.sasm.uclllabs.be](http://nick-maharjan.sasm.uclllabs.be/) /etc/bind/zones/db.nick-maharjan.sasm.uclllabs.be

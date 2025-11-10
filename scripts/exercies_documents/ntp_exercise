@@ -1,0 +1,112 @@
+# **NTP Server Configuration Report**
+
+## **Objective**
+
+The goal of this assignment was to set up and secure an NTP server. 
+I configured the server to synchronize its clock with `be.pool.ntp.org` while allowing only specific clients (`yoda.uclllabs.be` and one other server) to query it.
+ All other requests from the internet were blocked. Below is the step-by-step process of what I did and why.
+
+---
+
+### **Step 1: Installing NTP and Supporting Tools**
+
+To start, I updated the system and installed the required packages:
+
+```bash
+bash
+sudo apt update
+sudo apt install ntpsec -y
+sudo apt install ntpdate ntpstat -y
+
+```
+
+I installed `ntpsec` as the main daemon for time 
+synchronization because it’s a modern, secure implementation of NTP.
+ Additionally, I installed `ntpdate` and `ntpstat` to test 
+and verify the server configuration later.
+---
+
+### **Step 2: Setting the Timezone**
+
+Next, I set the server's timezone to match the required region:
+
+```bash
+bash
+sudo timedatectl set-timezone Europe/Brussels
+
+```
+
+I did this because it ensures that the local time on 
+the server aligns with the correct geographical and organizational settings. 
+This is important for accurate logging and synchronization across devices in the network.
+
+---
+
+### **Step 3: Configuring the NTP Server**
+
+I edited the NTP configuration file located at `/etc/ntpsec/ntp.conf`:
+
+```bash
+bash
+sudo nano /etc/ntpsec/ntp.conf
+
+```
+
+I made the following changes:
+
+1. **Set the NTP Pool:**
+    
+    I configured the server to synchronize with the Belgian NTP pool by adding this line:
+    
+    ```
+    Copy code
+    pool be.pool.ntp.org
+    
+    ```
+    
+    I used the Belgian pool to ensure the server 
+synchronizes with reliable and geographically relevant sources.
+    
+2. **Access Restrictions:**
+    
+    I restricted access to the server by adding the following lines:
+    
+    ```c
+    c
+    Copy code
+    restrict default ignore
+    restrict 127.0.0.1
+    restrict ::1
+    restrict source noquery
+    restrict 193.191.177.12 limited kod nomodify notrap nopeer noquery
+    restrict 2001:6a8:2880:a021::12 limited kod nomodify notrap nopeer noquery
+    restrict 193.191.176.227 limited kod nomodify notrap nopeer noquery
+    discard minimum 1
+    
+    ```
+    
+    - I used `restrict default ignore` to block all queries by default for security purposes.
+    - Allowed localhost (`127.0.0.1` and `::1`) for server-side tests and queries.
+    - Allowed specific clients (`yoda.uclllabs.be` and another server) using their IPv4 and IPv6 addresses.
+    - Added `discard minimum 1` to address potential rate-limiting issues with certain clients.
+
+After saving the file, I restarted the NTP service:
+
+```bash
+bash
+Copy code
+sudo systemctl restart ntpsec
+sudo systemctl enable ntpsec
+
+```
+
+### **Why I Did This**
+
+- **Installation:** I installed `ntpsec` for its modern features and enhanced security, 
+along with utilities for testing the configuration.
+- **Timezone Configuration:** Setting the timezone was necessary for 
+accurate logs and to align with organizational requirements.
+- **NTP Configuration:** I restricted access 
+to authorized clients only for security and compliance with the assignment. Using the `discard minimum 1` option prevented rate-limiting issues.
+- **Verification:** Testing was crucial to 
+confirm the server behaved as intended for both allowed and denied clients.

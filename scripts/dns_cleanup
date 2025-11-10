@@ -1,0 +1,87 @@
+
+#!/bin/bash
+
+# Ensure the script is run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: This script must be run as root."
+  exit 1
+fi
+
+# Variables
+zone="nick-maharjan.sasm.uclllabs.be"
+parent_zonefile="/etc/bind/zones/db.$zone"
+configfile="/etc/bind/named.conf.yoda-zones"
+zone_dir="/etc/bind/zones"
+
+# Function to remove a zone
+remove_zone() {
+  local subzone="$1"
+  local zonefile="$zone_dir/db.$subzone.$zone"
+
+  echo "Processing subzone: $subzone.$zone"
+
+  # Check if the zonefile exists
+  if [ ! -f "$zonefile" ]; then
+    echo "Warning: Zone file $zonefile not found. Skipping."
+    return
+  fi
+
+  # Remove NS record from the parent zone
+  if sed -i "/$subzone\s\+IN\s\+NS\s\+/d" "$parent_zonefile"; then
+    echo "Removed NS record for $subzone.$zone from $parent_zonefile."
+  else
+    echo "Warning: Failed to remove NS record for $subzone.$zone. Check $parent_zonefile."
+  fi
+
+  # Remove the zone configuration from named.conf.yoda-zones
+  if sed -i "/zone \"$subzone.$zone\" {/,/};/d" "$configfile"; then
+    echo "Removed zone configuration for $subzone.$zone from $configfile."
+  else
+    echo "Warning: Failed to remove zone configuration for $subzone.$zone."
+  fi
+
+  # Remove the zone file
+  if rm -f "$zonefile"; then
+    echo "Deleted zone file: $zonefile."
+  else
+    echo "Warning: Failed to delete zone file: $zonefile."
+  fi
+
+  echo "Subzone $subzone.$zone removed successfully."
+}
+
+# Get the current timestamp
+current_time=$(date +%s)
+
+# Find and remove zones older than 4 hours
+for zonefile in "$zone_dir"/db.*.$zone; do
+  if [ -f "$zonefile" ]; then
+    subzone=$(basename "$zonefile" | sed "s/db.//" | sed "s/\.$zone//")
+    creation_time=$(stat -c %Y "$zonefile")
+    age=$((current_time - creation_time))
+
+    if [ "$age" -gt 14400 ]; then # 4 hours = 14400 seconds
+      remove_zone "$subzone"
+    fi
+  fi
+done
+
+# Update serial number in the parent zone file
+current_serial=$(awk '/Serial/ {print $1; exit}' "$parent_zonefile")
+new_serial=$(date +%Y%m%d%H)
+
+if [[ -n "$current_serial" ]]; then
+  sed -i "s/$current_serial/$new_serial/" "$parent_zonefile" &&
+    echo "Updated serial number in $parent_zonefile to $new_serial." ||
+    echo "Warning: Failed to update serial number in $parent_zonefile."
+else
+  echo "Warning: Could not find a valid serial number in $parent_zonefile."
+fi
+
+# Reload BIND to apply changes
+if systemctl restart bind9; then
+  echo "BIND reloaded successfully."
+else
+  echo "Error: Failed to reload BIND. Please check the configuration."
+  exit 1
+fi
